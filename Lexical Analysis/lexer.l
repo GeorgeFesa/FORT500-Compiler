@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <string.h>
 #include <math.h>
-#include <stdbool.h>
 
 struct string_buffer buff;
 
@@ -40,7 +39,7 @@ RCONST        ({RCONST1}|{RCONST2}){EXPONENT}?|{R_HEXADECIMAL}|{R_BINARY}
  * RCONST        (((((0|([1-9][0-9]*)))?\.(0|([1-9][0-9]*)+)|(0|([1-9][0-9]*)+)\.?(0|([1-9][0-9]*)))([Ee][+-]?(0|([1-9][0-9]*)))?)|((0[Hh](0|([1-9a-fA-F][0-9a-fA-F]*))\.(([0-9a-fA-F]*[1-9a-fA-F][0-9a-fA-F]*)|0)?)|(0[Bb](0|(1[01]*))\.(([01]*1[01]*)|0)?)))
  */
 
-CCONST        '(.|(\\[nftrbv]))'
+CCONST        '((\\[nftrbv])|.)'
 
 %%
 
@@ -70,16 +69,14 @@ CCONST        '(.|(\\[nftrbv]))'
 "RETURN"                 { print_token(T_RETURN);     return T_RETURN;       }
 
   /* STRINGS - Υπο-αναλυτής */
-\"                       { strcpy(buff.string, "");       
-                           Bint error_counter = 0;
-EGIN(STRING);                                    }
+\"                       { strcpy(buff.string, "");   BEGIN(STRING);         }
 <STRING>\"               { BEGIN(INITIAL);  
                            print_token(T_STRING);     return T_STRING;       }
 <STRING>(\\\n|\\\r\n)    {                                                   }
-<STRING>(\\.|[^"\\])     { fix_special_chars_in_buff();                      } 
-<STRING>(\n|\r\n)        { print_error("New line found without \\");         } /* ERROR */
-<STRING><<EOF>>          { print_error("End of string without closing it!"); } /* ERROR */
-<STRING>.                { print_error("Unknown Character!");                } /* ERROR */
+<STRING>(\\.|[^"\\])     { string_buffer_concat_string(&buff, yytext);       } 
+<STRING>(\n|\r\n)        { print_error("String: Newline found without \\.");         } /* ERROR */
+<STRING><<EOF>>          { print_error("String: End of string without closing it."); } /* ERROR */
+<STRING>.                { print_error("String: Unknown character.");                } /* ERROR */
 
   /* ΣΧΟΛΙΑ */
 "$"                      { BEGIN(COMMENT);                                   }
@@ -129,23 +126,15 @@ int main(int argc, char *argv[]) {
   }
 
   yyin = fopen(argv[1], "r");
-  if (yyin == NULL) {
-    perror("Could not open file.\n");
-    return EXIT_FAILURE;
-  }
+  CHECK_ERROR(yyin, "Could not open file."); 
 
-  buff.string = (char*)malloc(BLOCK_SIZE * sizeof(char));
-  buff.allocated_size = BLOCK_SIZE;
-  if (buff.string == NULL) {
-    perror("Allocating memory.");
-    return EXIT_FAILURE;
-  }
+  string_buffer_init(&buff);
 
 	do {		
 		token = yylex(); 
 	} while (token != T_EOF);
 
-  free(buff.string);  
+  string_buffer_destroy(&buff);
 
 	fclose(yyin);
 	yyterminate();
@@ -175,8 +164,6 @@ void print_token(int token) {
 
 void print_error(const char* error_msg) {
   printf("[Line: %03d] ERROR:   %s  %s\n", yylineno, error_msg, yytext);
-  printf("[*ERROR*] ERROR: MAXIMUM ERRORS FOUND!\n");
-  exit(EXIT_FAILURE);
-
   yyless(1); /* Panic Method */
+  exit(EXIT_FAILURE);
 }

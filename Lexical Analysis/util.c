@@ -7,7 +7,6 @@
 #include <ctype.h>
 
 extern char* yytext;
-extern struct string_buffer buff;
 
 int str_to_int(char *str) {
   if (!isdigit(str[1])) {
@@ -116,22 +115,23 @@ double str_to_double(char* str)
   int type = str_check_type(str);
   double result = 0.0;
 
+  char* buffer = NULL;
+
   switch (type) {
   case normal:
     result = atof(str);
     break;
       
   case decimal_point: {
-    char* buffer = (char*)malloc((strlen(str) + 1) * sizeof(char));
+    buffer = (char*)malloc((strlen(str) + 1) * sizeof(char));
     buffer[0] = '0';
     strcpy(buffer + 1, str);
     result = atof(buffer);
-    free(buffer);
     break;
   }
 
   case exponent: {
-    char* buffer = (char*)malloc(strlen(str) * sizeof(char));
+    buffer = (char*)malloc(strlen(str) * sizeof(char));
 
     int i = 0;
     while (str[i] != 'e') {
@@ -153,8 +153,6 @@ double str_to_double(char* str)
 
     int exponent = atoi(buffer);
     result *= pow(10, exponent);
-
-    free(buffer);
     break;
   }
 
@@ -174,50 +172,66 @@ double str_to_double(char* str)
   default:
     return -1;
   }
-  
+
+  free(buffer);
   return result;
 }
 
-int fix_special_chars_in_buff() {
+int string_buffer_concat_string(struct string_buffer* buffer, char* yytext) {
 
-  int new_length = strlen(buff.string) + 1 + strlen(yytext);
-  if (new_length >= buff.allocated_size) {
-    buff.string = (char*)realloc(buff.string, (buff.allocated_size + BLOCK_SIZE) * sizeof(char));
-    CHECK_ERROR(buff.string, "Allocating less memory.");
-  } else if (new_length < buff.allocated_size / 2) {
-    buff.string = (char*)realloc(buff.string, (buff.allocated_size / 2) * sizeof(char));
-    CHECK_ERROR(buff.string, "Allocating less memory.");
+  int new_length = strlen(buffer->string) + 1 + strlen(yytext);
+
+  if (new_length >= buffer->allocated_size) {
+    buffer->string = (char*)realloc(buffer->string, (buffer->allocated_size + BLOCK_SIZE) * sizeof(char));
+    CHECK_ERROR(buffer->string, "Allocating less memory.");
+    
+  } else if (new_length < buffer->allocated_size / 2) {
+    buffer->string = (char*)realloc(buffer->string, (buffer->allocated_size / 2) * sizeof(char));
+    CHECK_ERROR(buffer->string, "Allocating less memory.");
   }
 
   if (yytext[0] == '\\') {
 
     switch (yytext[1]) {
     case 'n':
-      strcat(buff.string, "\n");
+      strcat(buffer->string, "\n");
       break;
     case 't':
-      strcat(buff.string, "\t");
+      strcat(buffer->string, "\t");
       break;
     case 'r':
-      strcat(buff.string, "\r");
+      strcat(buffer->string, "\r");
       break;
     case 'f':
-      strcat(buff.string, "\f");
+      strcat(buffer->string, "\f");
       break;
     case 'b':
-      strcat(buff.string, "\b");
+      strcat(buffer->string, "\b");
       break;
     case 'v':
-      strcat(buff.string, "\v");
+      strcat(buffer->string, "\v");
       break;
     default:
-      strcat(buff.string, yytext);
+      strcat(buffer->string, yytext);
       break;
     }
 
   } else {
-    strcat(buff.string, yytext);
+    strcat(buffer->string, yytext);
   }
 
   return 1;
+}
+
+int string_buffer_init(struct string_buffer* buffer)
+{
+  buffer->string = (char*)malloc(BLOCK_SIZE * sizeof(char));
+  buffer->allocated_size = BLOCK_SIZE;
+  CHECK_ERROR(buffer->string ,"Initializing string_buffer  memory.")
+  return 0;
+}
+
+void string_buffer_destroy(struct string_buffer* buffer)
+{
+  free(buffer->string);
 }
