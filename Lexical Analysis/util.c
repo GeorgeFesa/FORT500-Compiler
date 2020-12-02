@@ -85,25 +85,21 @@ double str_base_to_double(char* str, double base)
     ;
 
   int decimal_pos = i;
-  // int power = 0;
   double current_base = 1.0;
   --i;
 
   while (i > 1) {
     int digit = char_to_dec(str[i], base);
-    result += digit * current_base; // pow(base, power);
-    // ++power;
+    result += digit * current_base;
     current_base *= base;
     --i;
   }
 
-  // int power = -1;
   current_base = 1.0 / base;
   i = decimal_pos + 1;
   while (str[i]) {
     int digit = char_to_dec(str[i], base);
     result += digit * current_base;
-    // --power;
     current_base /= base;
     ++i;
   }
