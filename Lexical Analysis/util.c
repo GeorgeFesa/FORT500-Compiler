@@ -66,14 +66,14 @@ int str_check_type(char* str)
 
 int char_to_dec(char c, int base)
 {
-  if ('0' <= c && c <= '9')
-    return c - '0';
-  else if ('A' <= c && c <= 'F')
-    return c - 55;
-  else if ('a' <= c && c <= 'f')
-    return c - 87;
-  else
-    return -1;
+  c = tolower(c);
+  const char symbols[] = "0123456789abcdef";
+  for (int i = 0 ; i < 15; ++i) {
+    if (c == symbols[i]) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 double str_base_to_double(char* str, double base)
