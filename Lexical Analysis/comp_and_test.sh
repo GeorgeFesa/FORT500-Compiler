@@ -2,8 +2,12 @@
 
 flex lexer.l
 gcc lex.yy.c util.c -lfl -lm
-if [[ $1 -eq "1" ]]; then
-	./a.out fort500tests/fort500test1.f
-elif [[ $1 -eq "2" ]]; then
-	./a.out fort500tests/fort500test2.f
+
+test="fort500test$1.f"
+
+if [ ! -f fort500tests/"$test" ]; then
+	echo "No such test."
+	exit 1
 fi
+
+./a.out fort500tests/"$test"
