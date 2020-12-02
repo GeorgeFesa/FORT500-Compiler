@@ -35,15 +35,12 @@ int str_check_type(char* str)
   // decimal point
   if (str[0] == '.')
     return decimal_point;
-
-  // normal
-  bool is_normal = true;
+  
+  // exponent
   for (char* p = str; *p; ++p) {
-    if (!isdigit(*p) && *p != '.')
-      is_normal = false;
+    if (*p == 'e')
+      return exponent;
   }
-  if (is_normal)
-    return normal;
 
   // hex
   if (strncmp(str, "0h", 2) == 0)
@@ -53,11 +50,16 @@ int str_check_type(char* str)
   if (strncmp(str, "0b", 2) == 0)
     return bin;
 
-  // exponent
+  // normal
+  bool is_normal = true;
   for (char* p = str; *p; ++p) {
-    if (*p == 'e')
-      return exponent;
+    if (!isdigit(*p) && *p != '.') {
+      is_normal = false;
+      break;
+    }
   }
+  if (is_normal)
+    return normal;
 
   return error;
 }
@@ -86,6 +88,7 @@ double str_base_to_double(char* str, double base)
   // int power = 0;
   double current_base = 1.0;
   --i;
+
   while (i > 1) {
     int digit = char_to_dec(str[i], base);
     result += digit * current_base; // pow(base, power);
@@ -114,7 +117,6 @@ double str_to_double(char* str)
 
   int type = str_check_type(str);
   double result = 0.0;
-
   char* buffer = NULL;
 
   switch (type) {
@@ -166,11 +168,9 @@ double str_to_double(char* str)
     break;
 
   case error:
+  default:
     result = -1;
     break;
-      
-  default:
-    return -1;
   }
 
   free(buffer);
