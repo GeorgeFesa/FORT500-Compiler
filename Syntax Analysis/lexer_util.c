@@ -1,4 +1,4 @@
-#include "util.h"
+#include "lexer_util.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -230,4 +230,38 @@ int string_buffer_init(struct string_buffer* buffer)
 void string_buffer_destroy(struct string_buffer* buffer)
 {
   free(buffer->string);
+}
+
+char fix_escape_characters()
+{
+  char ret;
+  if (yytext[1] == '\\') {
+    switch (yytext[2]) {
+    case 'n':
+      ret = '\n';
+      break;
+    case 't':
+      ret = '\t';
+      break;
+    case 'r':
+      ret = '\r';
+      break;
+    case 'f':
+      ret = '\f';
+      break;
+    case 'b':
+      ret = '\b';
+      break;
+    case 'v':
+      ret = '\v';
+      break;
+    default:
+      ret = yytext[1];
+      break;
+    }
+  } else {
+    ret = yytext[1];
+  }
+
+  return ret;
 }

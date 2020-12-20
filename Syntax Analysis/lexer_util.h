@@ -1,5 +1,5 @@
-#ifndef UTIL_H
-#define UTIL_H
+#ifndef LEXER_UTIL_H
+#define LEXER_UTIL_H
 
 #include <stddef.h>
 
@@ -40,5 +40,7 @@ struct string_buffer {
 int string_buffer_init(struct string_buffer* buffer);
 void string_buffer_destroy(struct string_buffer* buffer);
 int string_buffer_concat_string(struct string_buffer* buffer, char* yytext);
+
+char fix_escape_characters();
 
 #endif // UTIL_H

@@ -1,9 +1,12 @@
 %{
 
+#include "lexer_util.h"
+#include "extra/hashtbl.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 
+extern struct string_buffer buff;
 extern FILE* yyin;
 extern int yylex();
 extern int yylineno;
@@ -13,6 +16,9 @@ extern void yyerror(const char* err) {
   fprintf(stderr, "[Line: %03d] Error: %s\n", yylineno, err);
 }
 
+HASHTBL* hashtable;
+int scope = 0;
+
 %}
 
 %define parse.error verbose
@@ -20,37 +26,37 @@ extern void yyerror(const char* err) {
 %union {
   int integer;
   double real;
-  // TODO: CHANGE TO BOOL.
-  int logical;
+  // Γιατί όχι bool ???????????????????
+  _Bool logical;
   char character;
   const char* string;
 }
 
   /* ΛΕΞΕΙΣ ΚΛΕΙΔΙΑ */
-%token T_FUNCTION    1 "function"
-%token T_SUBROUTINE  2 "subroutine"
-%token T_END         3 "end"
-%token T_INTEGER     4 "integer"
-%token T_REAL        5 "real"
-%token T_LOGICAL     6 "logical"
-%token T_CHARACTER   7 "character"
-%token T_RECORD      8 "record"
-%token T_ENDREC      9 "endrec"
-%token T_DATA       10 "data"
-%token T_CONTINUE   11 "continue"
-%token T_GOTO       12 "goto"
-%token T_CALL       13 "call"
-%token T_READ       14 "read"
-%token T_WRITE      15 "write"
-%token T_IF         16 "if"
-%token T_THEN       17 "then"
-%token T_ELSE       18 "else"
-%token T_ENDIF      19 "endif"
-%token T_DO         20 "do"
-%token T_ENDDO      21 "enddo"
-%token T_STOP       22 "stop"
-%token T_RETURN     23 "return"
-%token T_ID         24 "id"
+%token T_FUNCTION     1 "function"
+%token T_SUBROUTINE   2 "subroutine"
+%token T_END          3 "end"
+%token T_INTEGER      4 "integer"
+%token T_REAL         5 "real"
+%token T_LOGICAL      6 "logical"
+%token T_CHARACTER    7 "character"
+%token T_RECORD       8 "record"
+%token T_ENDREC       9 "endrec"
+%token T_DATA        10 "data"
+%token T_CONTINUE    11 "continue"
+%token T_GOTO        12 "goto"
+%token T_CALL        13 "call"
+%token T_READ        14 "read"
+%token T_WRITE       15 "write"
+%token T_IF          16 "if"
+%token T_THEN        17 "then"
+%token T_ELSE        18 "else"
+%token T_ENDIF       19 "endif"
+%token T_DO          20 "do"
+%token T_ENDDO       21 "enddo"
+%token T_STOP        22 "stop"
+%token T_RETURN      23 "return"
+%token <string> T_ID 24 "id"
 
   /* ΣΤΑΘΕΡΕΣ */
 %token <integer>   T_ICONST 25 "iconst"
@@ -77,7 +83,30 @@ extern void yyerror(const char* err) {
 %token T_ASSIGN     41 "="
 %token T_COLON      42 ":"
 
-%token T_EOF      0 "<EOF>"
+%token T_EOF        0 "<EOF>"
+
+%type <string> program body declarations type vars undef_variable dims dim fields
+%type <string> field vals value_list values value repeat constant statements labeled_statement
+%type <string> label statement simple_statement assignment variable expressions
+%type <string> expression goto_statement labels if_statement subroutine_call
+%type <string> io_statement read_list read_item iter_space step write_list write_item
+%type <string> compound_statement branch_statement tail loop_statement subprograms
+%type <string> subprogram header formal_parameters
+
+ /* %left T_LPAREN T_RPAREN */ /* ? */
+ /* %left T_COLON */
+%left T_MULOP T_DIVOP
+%left T_ADDOP
+%left T_NOTOP /* ? */
+%left T_ANDOP
+%left T_OROP
+
+%right T_POWEROP
+%right T_ASSIGN
+
+%nonassoc T_RELOP
+
+%start program /* Optional */
 
 %%
 
@@ -90,18 +119,22 @@ declarations        : declarations type vars
                     | declarations T_DATA vals
                     | %empty
 
-type                : T_INTEGER | T_REAL | T_LOGICAL | T_CHARACTER
+type                : T_INTEGER 
+                    | T_REAL 
+                    | T_LOGICAL 
+                    | T_CHARACTER
 
 vars                : vars T_COMMA undef_variable
                     | undef_variable
 
-undef_variable      : T_ID T_LPAREN dims T_RPAREN
-                    | T_ID
+undef_variable      : T_ID T_LPAREN dims T_RPAREN                        { hashtbl_insert(hashtable, $1, NULL, scope); }
+                    | T_ID                                               { hashtbl_insert(hashtable, $1, NULL, scope); }
 
 dims                : dims T_COMMA dim
                     | dim
 
-dim                 : T_ICONST | T_ID
+dim                 : T_ICONST
+                    | T_ID                                               { hashtbl_insert(hashtable, $1, NULL, scope); }
 
 fields              : fields field
                     | field
@@ -109,8 +142,8 @@ fields              : fields field
 field               : type vars
                     | T_RECORD fields T_ENDREC vars
 
-vals                : vals T_COMMA T_ID value_list
-                    | T_ID value_list
+vals                : vals T_COMMA T_ID value_list                       { hashtbl_insert(hashtable, $3, NULL, scope); }
+                    | T_ID value_list                                    { hashtbl_insert(hashtable, $1, NULL, scope); }
 
 value_list          : T_DIVOP values T_DIVOP
 
@@ -124,9 +157,13 @@ value               : repeat T_MULOP T_ADDOP constant
                     | constant
                     | T_STRING
 
-repeat              : T_ICONST | %empty
+repeat              : T_ICONST 
+                    | %empty
 
-constant            : T_ICONST | T_RCONST | T_LCONST | T_CCONST
+constant            : T_ICONST 
+                    | T_RCONST 
+                    | T_LCONST 
+                    | T_CCONST
 
 statements          : statements labeled_statement
                     | labeled_statement
@@ -151,9 +188,9 @@ simple_statement    : assignment
 assignment          : variable T_ASSIGN expression
                     | variable T_ASSIGN T_STRING
 
-variable            : variable T_COLON T_ID
+variable            : variable T_COLON T_ID                               { hashtbl_insert(hashtable, $3, NULL, scope); }
                     | variable T_LPAREN expressions T_RPAREN
-                    | T_ID
+                    | T_ID                                                { hashtbl_insert(hashtable, $1, NULL, scope); }
 
 expressions         : expressions T_COMMA expression
                     | expression
@@ -172,7 +209,7 @@ expression          : expression T_OROP expression
                     | T_LPAREN expression T_RPAREN
 
 goto_statement      : T_GOTO label
-                    | T_GOTO T_ID T_COMMA T_LPAREN labels T_RPAREN
+                    | T_GOTO T_ID T_COMMA T_LPAREN labels T_RPAREN        { hashtbl_insert(hashtable, $2, NULL, scope); }
 
 labels              : labels T_COMMA label
                     | label
@@ -189,7 +226,7 @@ read_list           : read_list T_COMMA read_item
                     | read_item
                     
 read_item           : variable
-                    | T_LPAREN read_list T_COMMA T_ID T_ASSIGN iter_space T_RPAREN
+                    | T_LPAREN read_list T_COMMA T_ID T_ASSIGN iter_space T_RPAREN       { hashtbl_insert(hashtable, $4, NULL, scope); }
 
 iter_space          : expression T_COMMA expression step
 
@@ -200,7 +237,7 @@ write_list          : write_list T_COMMA write_item
                     | write_item
 
 write_item          : expression
-                    | T_LPAREN write_list T_COMMA T_ID T_ASSIGN iter_space T_RPAREN
+                    | T_LPAREN write_list T_COMMA T_ID T_ASSIGN iter_space T_RPAREN      { hashtbl_insert(hashtable, $4, NULL, scope); }
                     | T_STRING
 
 compound_statement  : branch_statement
@@ -211,16 +248,16 @@ branch_statement    : T_IF T_LPAREN expression T_RPAREN T_THEN body tail
 tail                : T_ELSE body T_ENDIF
                     | T_ENDIF
 
-loop_statement      : T_DO T_ID T_ASSIGN iter_space body T_ENDDO
+loop_statement      : T_DO T_ID T_ASSIGN iter_space body T_ENDDO                         { hashtbl_insert(hashtable, $2, NULL, scope); }
 
 subprograms         : subprograms subprogram
                     | %empty
 
 subprogram          : header body T_END
 
-header              : type T_FUNCTION T_ID T_LPAREN formal_parameters T_RPAREN
-                    | T_SUBROUTINE T_ID T_LPAREN formal_parameters T_RPAREN
-                    | T_SUBROUTINE T_ID
+header              : type T_FUNCTION T_ID T_LPAREN formal_parameters T_RPAREN           { hashtbl_insert(hashtable, $3, NULL, scope); }
+                    | T_SUBROUTINE T_ID T_LPAREN formal_parameters T_RPAREN              { hashtbl_insert(hashtable, $2, NULL, scope); }
+                    | T_SUBROUTINE T_ID                                                  { hashtbl_insert(hashtable, $2, NULL, scope); }
 
 formal_parameters   : type vars T_COMMA formal_parameters
                     | type vars
@@ -239,7 +276,18 @@ int main(int argc, char** argv) {
     return EXIT_FAILURE;
   }
 
+  if (!(hashtable = hashtbl_create(10, NULL))){
+    perror("[ERROR] Failed to initialize hashtable.");
+    exit(EXIT_FAILURE);
+  }
+
+  string_buffer_init(&buff);
+
   yyparse();
+
   fclose(yyin);
+  hashtbl_destroy(hashtable);
+  string_buffer_destroy(&buff);
+
   return 0;
 }

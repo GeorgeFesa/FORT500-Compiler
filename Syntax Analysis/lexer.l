@@ -1,7 +1,7 @@
 %{ 
 
 #include "tokens.h"
-#include "util.h"
+#include "lexer_util.h"
 #include "parser.tab.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +12,7 @@
 #define FLEX_DEBUG
 
 struct string_buffer buff;
+int errors = 0;
 
 %}
 
@@ -42,7 +43,7 @@ RCONST        ({RCONST1}|{RCONST2}){EXPONENT}?|{R_HEXADECIMAL}|{R_BINARY}
  * RCONST        (((((0|([1-9][0-9]*)))?\.(0|([1-9][0-9]*)+)|(0|([1-9][0-9]*)+)\.?(0|([1-9][0-9]*)))([Ee][+-]?(0|([1-9][0-9]*)))?)|((0[Hh](0|([1-9a-fA-F][0-9a-fA-F]*))\.(([0-9a-fA-F]*[1-9a-fA-F][0-9a-fA-F]*)|0)?)|(0[Bb](0|(1[01]*))\.(([01]*1[01]*)|0)?)))
  */
 
-CCONST        '((\\[nftrbv])|.)'
+CCONST        '((\\[\\nftrbv])|.)'
 
 %%
 
@@ -74,7 +75,9 @@ CCONST        '((\\[nftrbv])|.)'
   /* STRINGS - Υπο-αναλυτής */
 \"                       { strcpy(buff.string, "");   BEGIN(STRING);                 }
 <STRING>\"               { BEGIN(INITIAL);
-                           print_token(T_STRING);     return T_STRING;               }
+                           print_token(T_STRING); 
+                           yylval.string = strdup(buff.string); 
+                           return T_STRING;                                          }
 <STRING>(\\\n|\\\r\n)    {                                                           }
 <STRING>(\\.|[^"\\])     { string_buffer_concat_string(&buff, yytext);               } 
 <STRING>(\n|\r\n)        { print_error("String: Newline found without \\.");         } /* ERROR */
@@ -107,12 +110,20 @@ CCONST        '((\\[nftrbv])|.)'
 "="                      { print_token(T_ASSIGN);     return T_ASSIGN;               }
 ":"                      { print_token(T_COLON);      return T_COLON;                }
 
-{IDENTIFIER}             { print_token(T_ID);         return T_ID;                   }
+{IDENTIFIER}             { print_token(T_ID); 
+                           yylval.string = strdup(yytext);
+                           return T_ID; }
   
   /* ΣΤΑΘΕΡΕΣ */
-{ICONST}                 { print_token(T_ICONST);     return T_ICONST;               }
-{RCONST}                 { print_token(T_RCONST);     return T_RCONST;               }
-{CCONST}                 { print_token(T_CCONST);     return T_CCONST;               }
+{ICONST}                 { print_token(T_ICONST); 
+                           yylval.integer = str_to_int(yytext);
+                           return T_ICONST; }
+{RCONST}                 { print_token(T_RCONST);
+                           yylval.real = str_to_double(yytext);
+                           return T_RCONST; }
+{CCONST}                 { print_token(T_CCONST); 
+                           yylval.character = fix_escape_characters();
+                           return T_CCONST; }
 {WHITESPACE}             {                                                           }
 
 <<EOF>>                  { print_token(T_EOF);        return T_EOF;                  }
@@ -174,7 +185,13 @@ void print_token(int token) {
 }
 
 void print_error(const char* error_msg) {
+  ++errors;
   printf("[Line: %03d] ERROR:   %s  %s\n", yylineno, error_msg, yytext);
+
+  if (errors == 5) {
+    printf("Maximum number of errors.\n");
+    exit(EXIT_FAILURE);
+  }
+
   yyless(1); /* Panic Method */
-  exit(EXIT_FAILURE);
 }
