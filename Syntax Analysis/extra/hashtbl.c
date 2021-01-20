@@ -107,8 +107,8 @@ int hashtbl_remove(HASHTBL *hashtbl, const char *key,int scope)
 	hash_size hash=hashtbl->hashfunc(key)%hashtbl->size;
 
 	node=hashtbl->nodes[hash];
-	while(node) {
-		if((!strcmp(node->key, key)) && (node->scope == scope)) {
+	while (node) {
+		if ((!strcmp(node->key, key)) && (node->scope == scope)) {
 			free(node->key);
 			if(prevnode) prevnode->next=node->next;
 			else hashtbl->nodes[hash]=node->next;
@@ -128,15 +128,15 @@ void *hashtbl_get(HASHTBL *hashtbl, int scope)
 	hash_size n;
 	struct hashnode_s *node, *oldnode;
 		
-	for(n=0; n<hashtbl->size; ++n) {
+	for (n=0; n<hashtbl->size; ++n) {
 		node=hashtbl->nodes[n];
-		while(node) {
-			if(node->scope == scope) {
-				printf("\t\t\t\t\tHASHTBL_GET():\tSCOPE = %d, KEY = %s,  \tDATA = %s\n", node->scope, node->key, (char*)node->data);
+		while (node) {
+			if (node->scope == scope) {
+				printf("HASHTBL_GET(): SCOPE = %d, KEY = %s, DATA = %s\n", node->scope, node->key, (char*)node->data);
 				oldnode = node;
 				node=node->next;
 				rem = hashtbl_remove(hashtbl, oldnode->key, scope);
-			}else
+			} else
 				node=node->next;
 		}
 	}
