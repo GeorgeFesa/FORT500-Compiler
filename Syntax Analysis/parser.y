@@ -11,13 +11,22 @@ extern FILE* yyin;
 extern int yylex();
 extern int yylineno;
 
-// Πρέπει να κάνουμε define την yyerror για να τρέξει.
-extern void yyerror(const char* err) {
-  fprintf(stderr, "[Line: %03d] Error: %s\n", yylineno, err);
-}
-
 HASHTBL* hashtable;
 int scope = 0;
+int syntax_errors = 0;
+
+// Πρέπει να κάνουμε define την yyerror για να τρέξει.
+extern void yyerror(const char* err) {
+  ++syntax_errors;
+  fprintf(stderr, "[Line: %03d] Error: %s\n", yylineno, err);
+  
+  if (syntax_errors == 5) {
+    printf("Maximum number of syntax errors.\n");
+    exit(EXIT_FAILURE);
+  }
+
+  // yyerrok;
+}
 
 %}
 
@@ -112,12 +121,12 @@ int scope = 0;
 
 program             : body T_END subprograms
 
-body                : declarations statements
+body                : declarations { ++scope; } statements 
 
 declarations        : declarations type vars
                     | declarations T_RECORD fields T_ENDREC vars
                     | declarations T_DATA vals
-                    | %empty                                                        {                                             }
+                    | %empty { }
 
 type                : T_INTEGER 
                     | T_REAL 
@@ -134,7 +143,7 @@ dims                : dims T_COMMA dim
                     | dim
 
 dim                 : T_ICONST
-                    | T_ID                                                          { hashtbl_insert(hashtable, $1, NULL, scope); }
+                    | T_ID
 
 fields              : fields field
                     | field
@@ -142,8 +151,8 @@ fields              : fields field
 field               : type vars
                     | T_RECORD fields T_ENDREC vars
 
-vals                : vals T_COMMA T_ID value_list                                  { hashtbl_insert(hashtable, $3, NULL, scope); }
-                    | T_ID value_list                                               { hashtbl_insert(hashtable, $1, NULL, scope); }
+vals                : vals T_COMMA T_ID value_list
+                    | T_ID value_list
 
 value_list          : T_DIVOP values T_DIVOP
 
@@ -158,7 +167,7 @@ value               : repeat T_MULOP T_ADDOP constant
                     | T_STRING
 
 repeat              : T_ICONST 
-                    | %empty                                                        {                                             }
+                    | %empty { }
 
 constant            : T_ICONST 
                     | T_RCONST 
@@ -188,9 +197,9 @@ simple_statement    : assignment
 assignment          : variable T_ASSIGN expression
                     | variable T_ASSIGN T_STRING
 
-variable            : variable T_COLON T_ID                                         { hashtbl_insert(hashtable, $3, NULL, scope); }
+variable            : variable T_COLON T_ID
                     | variable T_LPAREN expressions T_RPAREN
-                    | T_ID                                                          { hashtbl_insert(hashtable, $1, NULL, scope); }
+                    | T_ID
 
 expressions         : expressions T_COMMA expression
                     | expression
@@ -209,7 +218,7 @@ expression          : expression T_OROP expression
                     | T_LPAREN expression T_RPAREN
 
 goto_statement      : T_GOTO label
-                    | T_GOTO T_ID T_COMMA T_LPAREN labels T_RPAREN                  { hashtbl_insert(hashtable, $2, NULL, scope); }
+                    | T_GOTO T_ID T_COMMA T_LPAREN labels T_RPAREN
 
 labels              : labels T_COMMA label
                     | label
@@ -226,37 +235,37 @@ read_list           : read_list T_COMMA read_item
                     | read_item
                     
 read_item           : variable
-                    | T_LPAREN read_list T_COMMA T_ID T_ASSIGN iter_space T_RPAREN  { hashtbl_insert(hashtable, $4, NULL, scope); }
+                    | T_LPAREN read_list T_COMMA T_ID T_ASSIGN iter_space T_RPAREN
 
-iter_space          : expression T_COMMA expression step                            { ++scope; }
+iter_space          : expression T_COMMA expression step
 
 step                : T_COMMA expression
-                    | %empty                                                        {                                             }
+                    | %empty { }
 
 write_list          : write_list T_COMMA write_item
                     | write_item
 
 write_item          : expression
-                    | T_LPAREN write_list T_COMMA T_ID T_ASSIGN iter_space T_RPAREN { hashtbl_insert(hashtable, $4, NULL, scope); }
+                    | T_LPAREN write_list T_COMMA T_ID T_ASSIGN iter_space T_RPAREN
                     | T_STRING
 
 compound_statement  : branch_statement
                     | loop_statement
 
-branch_statement    : T_IF T_LPAREN expression T_RPAREN T_THEN { ++scope; } body tail            
+branch_statement    : T_IF T_LPAREN expression T_RPAREN T_THEN body tail            { --scope; hashtbl_get(hashtable, scope); }
 
-tail                : T_ELSE body T_ENDIF
-                    | T_ENDIF                                                       { hashtbl_get(hashtable, scope), --scope;     }
+tail                : T_ELSE body T_ENDIF                                           { --scope; hashtbl_get(hashtable, scope); }
+                    | T_ENDIF                                                       { --scope; hashtbl_get(hashtable, scope); }
 
-loop_statement      : T_DO T_ID T_ASSIGN iter_space body T_ENDDO                    { hashtbl_insert(hashtable, $2, NULL, scope); hashtbl_get(hashtable, scope), --scope; }
+loop_statement      : T_DO T_ID { hashtbl_insert(hashtable, $2, NULL, scope); } T_ASSIGN iter_space body T_ENDDO  { --scope; hashtbl_get(hashtable, scope); }
 
 subprograms         : subprograms subprogram
-                    | %empty                                                        {                                             }
+                    | %empty { }
 
-subprogram          : header body T_END                                             { hashtbl_get(hashtable, scope), --scope;     }
+subprogram          : header body T_END                                             { --scope; hashtbl_get(hashtable, scope); }
 
-header              : type T_FUNCTION T_ID T_LPAREN { ++scope; } formal_parameters T_RPAREN      { hashtbl_insert(hashtable, $3, NULL, scope); }                 
-                    | T_SUBROUTINE T_ID T_LPAREN { ++scope; } formal_parameters T_RPAREN         { hashtbl_insert(hashtable, $2, NULL, scope); }
+header              : type T_FUNCTION T_ID T_LPAREN formal_parameters T_RPAREN      { hashtbl_insert(hashtable, $3, NULL, scope); }                 
+                    | T_SUBROUTINE T_ID T_LPAREN  formal_parameters T_RPAREN        { hashtbl_insert(hashtable, $2, NULL, scope); }
                     | T_SUBROUTINE T_ID                                             { hashtbl_insert(hashtable, $2, NULL, scope); }                                                   
 
 formal_parameters   : type vars T_COMMA formal_parameters
