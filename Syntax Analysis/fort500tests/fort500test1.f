@@ -37,9 +37,3 @@ do i=1,n
 enddo
 return
 end
-
-.
-?
-^&
-@
-^^

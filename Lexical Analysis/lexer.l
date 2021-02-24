@@ -10,6 +10,8 @@
 
 struct string_buffer buff;
 
+// Note: Δεν δουλεύει με error;
+
 %}
 
 %option noyywrap
@@ -29,7 +31,7 @@ BINARY        0[Bb]1[01]*
 ICONST        {DECIMAL}|{HEXADECIMAL}|{BINARY}|0
 
 RCONST1       (0|([1-9][0-9]*))?\.(0|[0-9]*[1-9][0-9]*)
-RCONST2       (0|([1-9][0-9]*))(\.(0|[0-9][1-9][0-9]*))?
+RCONST2       (0|([1-9][0-9]*))(\.(0|[0-9][1-9][0-9]*)?)?
 EXPONENT      [Ee][+-]?(0|([1-9][0-9]*))
 R_HEXADECIMAL 0[Hh](0|([1-9a-fA-F][0-9a-fA-F]*))\.(([0-9a-fA-F]*[1-9a-fA-F][0-9a-fA-F]*)|0)?
 R_BINARY      0[Bb](0|(1[01]*)?)\.(([01]*1[01]*)|0)?
